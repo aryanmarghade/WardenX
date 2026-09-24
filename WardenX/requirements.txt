@@ -1,0 +1,10 @@
+click
+watchdog
+requests
+plyer
+pytest
+pytest-mock
+yara-python
+rich
+selenium
+webdriver-manager
