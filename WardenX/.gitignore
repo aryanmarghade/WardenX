@@ -28,3 +28,13 @@ wheels/
 .pytest_cache/
 !build_windows/setup.iss
 !build_linux/build_and_install.sh
+
+# Simulation Suite & Test Artifacts
+simulate_attacks.py
+simulate_attacks.bat
+run_attacks.bat
+run_attacks.sh
+test_threat.*
+eicar_test.*
+payload.bin
+*.spec
