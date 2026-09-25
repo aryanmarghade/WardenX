@@ -9,6 +9,7 @@ import customtkinter as ctk
 import config
 import scanner
 import database
+import network_shield
 
 # Appearance Settings
 ctk.set_appearance_mode("Dark")
@@ -109,7 +110,7 @@ class WardenXApp(ctk.CTk):
         )
         self.switch_browser.grid(row=2, column=0, padx=15, pady=(6, 14), sticky="w")
 
-        # 5. Strict HTTPS Enforcement Switch (Port 80 blocking)
+        # 5. Strict HTTPS Enforcement Switch (Port 80 blocking / Linux iptables)
         self.switch_https = ctk.CTkSwitch(
             self.modules_frame,
             text="Enforce Strict HTTPS",
@@ -224,6 +225,9 @@ class WardenXApp(ctk.CTk):
         else:
             self.switch_https.deselect()
 
+        # Synchronize firewall rules on startup in background
+        threading.Thread(target=network_shield.sync_firewall_rules, daemon=True).start()
+
     def _on_toggle_file_watcher(self):
         state = bool(self.switch_file_watcher.get())
         config.set_state("FILE_WATCHER_ACTIVE", state)
@@ -233,6 +237,7 @@ class WardenXApp(ctk.CTk):
         state = bool(self.switch_network.get())
         config.set_state("NETWORK_SHIELD_ACTIVE", state)
         self._append_log(f"[CONFIG] Network Shield -> {'ENABLED' if state else 'DISABLED'}")
+        threading.Thread(target=network_shield.sync_firewall_rules, daemon=True).start()
 
     def _on_toggle_canary(self):
         state = bool(self.switch_canary.get())
@@ -248,6 +253,7 @@ class WardenXApp(ctk.CTk):
         state = bool(self.switch_https.get())
         config.set_state("FORCE_HTTPS_ACTIVE", state)
         self._append_log(f"[CONFIG] Enforce Strict HTTPS -> {'ENABLED' if state else 'DISABLED'}")
+        threading.Thread(target=network_shield.sync_firewall_rules, daemon=True).start()
 
     def _start_scan_dialog(self):
         if self.is_scanning:

@@ -1,8 +1,15 @@
+import os
 import time
 import threading
 import logging
-from scapy.all import sniff, IP, TCP
-import psutil
+import platform
+import subprocess
+try:
+    from scapy.all import sniff, IP, TCP
+except ImportError:
+    sniff = None
+    IP = None
+    TCP = None
 from database import log_network_event
 from enforcer import alert
 import config
@@ -14,6 +21,75 @@ SYN_WINDOW_SECONDS = 5
 MAX_CONNECTIONS = 50
 syn_tracker = {}
 syn_tracker_lock = threading.Lock()
+
+def is_linux():
+    return platform.system() == "Linux"
+
+def _run_iptables_command(cmd_args):
+    """
+    Executes an iptables command. Attempts sudo if not running as root.
+    Catches permissions, timeouts, and missing binary errors gracefully.
+    """
+    try:
+        is_root = (os.geteuid() == 0) if hasattr(os, 'geteuid') else False
+        if is_root:
+            cmd = ["iptables"] + cmd_args
+        else:
+            cmd = ["sudo", "-n", "iptables"] + cmd_args
+
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except (subprocess.SubprocessError, FileNotFoundError, PermissionError) as e:
+        logging.debug(f"iptables command execution notice ({' '.join(cmd_args)}): {e}")
+        return False
+    except Exception as e:
+        logging.debug(f"Unexpected iptables execution error: {e}")
+        return False
+
+def apply_iptables_https_enforcement(enable: bool):
+    """
+    On Linux, injects or removes an iptables firewall rule to DROP outbound Port 80 (HTTP).
+    Rule: iptables -A OUTPUT -p tcp --dport 80 -j DROP
+    """
+    if not is_linux():
+        return False
+
+    rule_check = ["-C", "OUTPUT", "-p", "tcp", "--dport", "80", "-j", "DROP"]
+    rule_add = ["-A", "OUTPUT", "-p", "tcp", "--dport", "80", "-j", "DROP"]
+    rule_del = ["-D", "OUTPUT", "-p", "tcp", "--dport", "80", "-j", "DROP"]
+
+    rule_exists = _run_iptables_command(rule_check)
+
+    if enable:
+        if not rule_exists:
+            success = _run_iptables_command(rule_add)
+            if success:
+                logging.info("[IPTABLES] Active: Injected DROP rule for outbound Port 80 (Strict HTTPS).")
+            else:
+                logging.warning("[IPTABLES] Could not insert iptables rule. Ensure root or passwordless sudo privileges.")
+            return success
+        return True
+    else:
+        if rule_exists:
+            success = _run_iptables_command(rule_del)
+            if success:
+                logging.info("[IPTABLES] Inactive: Removed Port 80 DROP rule.")
+            else:
+                logging.warning("[IPTABLES] Could not delete iptables rule.")
+            return success
+        return True
+
+def sync_firewall_rules():
+    """Synchronizes system firewall state with current configuration."""
+    if is_linux():
+        active = bool(config.get_state('FORCE_HTTPS_ACTIVE') and config.get_state('NETWORK_SHIELD_ACTIVE'))
+        apply_iptables_https_enforcement(active)
 
 def clean_tracker():
     """Remove IPs from tracker that are outside the 5-second window."""
@@ -73,6 +149,7 @@ def process_packet(packet):
 def _start_sniffing_thread():
     try:
         logging.info("Network Shield packet sniffing initialized.")
+        sync_firewall_rules()
         sniff(prn=process_packet, store=False)
     except Exception as e:
         logging.error(f"Error starting packet sniffer: {e}")
@@ -87,4 +164,5 @@ if __name__ == '__main__':
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        pass
+        if is_linux():
+            apply_iptables_https_enforcement(False)
