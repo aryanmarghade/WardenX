@@ -1,5 +1,6 @@
 import hashlib
 import os
+import sys
 import requests
 import logging
 from pathlib import Path
@@ -48,7 +49,10 @@ def check_virustotal(file_hash):
 def scan_with_yara(file_path):
     try:
         import yara # type: ignore
-        rules_path = Path(__file__).parent / 'rules' / 'malware.yar'
+        base_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+        rules_path = base_dir / 'rules' / 'malware.yar'
+        if not rules_path.exists():
+            rules_path = Path(__file__).parent / 'rules' / 'malware.yar'
         if not rules_path.exists():
             logging.warning(f"Yara rules file not found: {rules_path}")
             return False, None

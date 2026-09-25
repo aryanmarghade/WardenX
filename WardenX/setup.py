@@ -5,7 +5,7 @@ setup(
     version="1.0.0",
     description="A lightweight, cross-platform Endpoint Detection and Response (EDR) agent.",
     author="WardenX",
-    py_modules=["cli", "database", "analyzer", "watcher", "enforcer", "service_manager"],
+    py_modules=["cli", "database", "analyzer", "watcher", "enforcer", "service_manager", "scanner", "gui_app", "config", "heuristics", "network_shield", "canary_manager", "tray_app"],
     install_requires=[
         "click",
         "watchdog",

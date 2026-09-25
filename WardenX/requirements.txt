@@ -12,3 +12,4 @@ pystray
 Pillow
 scapy
 psutil
+customtkinter
