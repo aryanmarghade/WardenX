@@ -4,7 +4,7 @@ set -e
 echo "Starting Linux Build and Install for WardenX..."
 
 # Install PyInstaller
-pip install pyinstaller
+pip install pyinstaller --break-system-packages
 
 # Build binary
 pyinstaller --name WardenX --onefile --add-data "rules/malware.yar:rules" tray_app.py
