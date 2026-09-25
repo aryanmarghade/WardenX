@@ -55,15 +55,15 @@ def quarantine_file(file_path, threat_signature, file_hash):
         logging.error(f"Failed to quarantine {file_path}: {e}")
         return False
 
-def alert_user():
+def alert(message="Malicious file quarantined", title="WardenX Alert"):
     if os.environ.get("WARDENX_HEADLESS") == "1":
-        logging.info("Skipping desktop notification in headless test mode.")
+        logging.info(f"Skipping notification in headless test mode: {message}")
         return
     try:
         from plyer import notification
         notification.notify(
-            title="WardenX Alert",
-            message="Malicious file quarantined",
+            title=title,
+            message=message,
             app_name="WardenX",
             timeout=10
         )
@@ -71,11 +71,14 @@ def alert_user():
         logging.warning("plyer not installed.")
         if os.name == 'posix':
             try:
-                os.system('notify-send "WardenX Alert" "Malicious file quarantined"')
+                os.system(f'notify-send "{title}" "{message}"')
             except Exception:
                 pass
     except Exception as e:
         logging.error(f"Failed to send desktop notification: {e}")
+
+def alert_user():
+    alert("Malicious file quarantined", "WardenX Alert")
 
 def enforce(file_path, threat_signature, file_hash):
     if quarantine_file(file_path, threat_signature, file_hash):

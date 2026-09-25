@@ -23,11 +23,11 @@ if %errorlevel% neq 0 (
 echo.
 echo [3/3] Moving binary to build_windows directory...
 if not exist "build_windows" mkdir "build_windows"
-if exist "dist\WardenX_UI.exe" (
-    move /y "dist\WardenX_UI.exe" "build_windows\WardenX_UI.exe"
-    echo [SUCCESS] Binary moved to build_windows\WardenX_UI.exe
+powershell -Command "Get-Process -Name WardenX_UI -ErrorAction SilentlyContinue | Stop-Process -Force; Copy-Item -Force dist\WardenX_UI.exe build_windows\WardenX_UI.exe"
+if exist "build_windows\WardenX_UI.exe" (
+    echo [SUCCESS] Binary created at build_windows\WardenX_UI.exe
 ) else (
-    echo [ERROR] dist\WardenX_UI.exe not found.
+    echo [ERROR] build_windows\WardenX_UI.exe not found.
     exit /b 1
 )
 

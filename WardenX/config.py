@@ -9,7 +9,9 @@ _lock = threading.Lock()
 DEFAULT_CONFIG = {
     "FILE_WATCHER_ACTIVE": True,
     "NETWORK_SHIELD_ACTIVE": True,
-    "CANARY_ACTIVE": True
+    "CANARY_ACTIVE": True,
+    "BROWSER_PROTECTION_ACTIVE": True,
+    "FORCE_HTTPS_ACTIVE": True
 }
 
 def _load_config():
@@ -17,18 +19,22 @@ def _load_config():
         return DEFAULT_CONFIG.copy()
     try:
         with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Merge with default config to ensure all keys exist
+            config = DEFAULT_CONFIG.copy()
+            config.update(data)
+            return config
     except Exception:
         return DEFAULT_CONFIG.copy()
 
 def _save_config(config):
     with _lock:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=4)
 
 def get_state(module_name):
     config = _load_config()
-    return config.get(module_name, True)
+    return config.get(module_name, DEFAULT_CONFIG.get(module_name, True))
 
 def set_state(module_name, state):
     config = _load_config()
@@ -41,6 +47,6 @@ def set_all_states(state):
         config[key] = bool(state)
     _save_config(config)
 
-# Initialize
+# Initialize configuration file if it doesn't exist
 if not CONFIG_FILE.exists():
     _save_config(DEFAULT_CONFIG)

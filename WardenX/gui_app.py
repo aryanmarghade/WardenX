@@ -20,8 +20,8 @@ class WardenXApp(ctk.CTk):
         super().__init__()
 
         self.title("WardenX Security Center")
-        self.geometry("780x640")
-        self.minsize(700, 560)
+        self.geometry("820x680")
+        self.minsize(740, 600)
 
         # Scanning State
         self.is_scanning = False
@@ -66,19 +66,20 @@ class WardenXApp(ctk.CTk):
 
         self.modules_title = ctk.CTkLabel(
             self.modules_frame,
-            text="Real-Time Protection Layers",
+            text="Real-Time Protection & Enforcement Layers",
             font=ctk.CTkFont(size=15, weight="bold")
         )
         self.modules_title.grid(row=0, column=0, columnspan=3, padx=15, pady=(12, 8), sticky="w")
 
-        # 1. File Watcher Switch
+        # Row 1 Switches
+        # 1. File System Protection Switch
         self.switch_file_watcher = ctk.CTkSwitch(
             self.modules_frame,
             text="File System Protection",
             font=ctk.CTkFont(size=13),
             command=self._on_toggle_file_watcher
         )
-        self.switch_file_watcher.grid(row=1, column=0, padx=15, pady=(5, 15), sticky="w")
+        self.switch_file_watcher.grid(row=1, column=0, padx=15, pady=6, sticky="w")
 
         # 2. Network Shield Switch
         self.switch_network = ctk.CTkSwitch(
@@ -87,7 +88,7 @@ class WardenXApp(ctk.CTk):
             font=ctk.CTkFont(size=13),
             command=self._on_toggle_network_shield
         )
-        self.switch_network.grid(row=1, column=1, padx=15, pady=(5, 15), sticky="w")
+        self.switch_network.grid(row=1, column=1, padx=15, pady=6, sticky="w")
 
         # 3. Canary Honeypots Switch
         self.switch_canary = ctk.CTkSwitch(
@@ -96,7 +97,26 @@ class WardenXApp(ctk.CTk):
             font=ctk.CTkFont(size=13),
             command=self._on_toggle_canary
         )
-        self.switch_canary.grid(row=1, column=2, padx=15, pady=(5, 15), sticky="w")
+        self.switch_canary.grid(row=1, column=2, padx=15, pady=6, sticky="w")
+
+        # Row 2 Switches
+        # 4. Browser Download Protection Switch (.crdownload / .part interception)
+        self.switch_browser = ctk.CTkSwitch(
+            self.modules_frame,
+            text="Browser Download Protection",
+            font=ctk.CTkFont(size=13),
+            command=self._on_toggle_browser
+        )
+        self.switch_browser.grid(row=2, column=0, padx=15, pady=(6, 14), sticky="w")
+
+        # 5. Strict HTTPS Enforcement Switch (Port 80 blocking)
+        self.switch_https = ctk.CTkSwitch(
+            self.modules_frame,
+            text="Enforce Strict HTTPS",
+            font=ctk.CTkFont(size=13),
+            command=self._on_toggle_https
+        )
+        self.switch_https.grid(row=2, column=1, padx=15, pady=(6, 14), sticky="w")
 
         # --- Scanner Controls Section ---
         self.scan_frame = ctk.CTkFrame(self, corner_radius=10)
@@ -176,6 +196,8 @@ class WardenXApp(ctk.CTk):
         fw_state = config.get_state("FILE_WATCHER_ACTIVE")
         ns_state = config.get_state("NETWORK_SHIELD_ACTIVE")
         canary_state = config.get_state("CANARY_ACTIVE")
+        browser_state = config.get_state("BROWSER_PROTECTION_ACTIVE")
+        https_state = config.get_state("FORCE_HTTPS_ACTIVE")
 
         if fw_state:
             self.switch_file_watcher.select()
@@ -192,20 +214,40 @@ class WardenXApp(ctk.CTk):
         else:
             self.switch_canary.deselect()
 
+        if browser_state:
+            self.switch_browser.select()
+        else:
+            self.switch_browser.deselect()
+
+        if https_state:
+            self.switch_https.select()
+        else:
+            self.switch_https.deselect()
+
     def _on_toggle_file_watcher(self):
         state = bool(self.switch_file_watcher.get())
         config.set_state("FILE_WATCHER_ACTIVE", state)
-        self._append_log(f"[CONFIG] File System Protection set to {'ENABLED' if state else 'DISABLED'}")
+        self._append_log(f"[CONFIG] File System Protection -> {'ENABLED' if state else 'DISABLED'}")
 
     def _on_toggle_network_shield(self):
         state = bool(self.switch_network.get())
         config.set_state("NETWORK_SHIELD_ACTIVE", state)
-        self._append_log(f"[CONFIG] Network Shield set to {'ENABLED' if state else 'DISABLED'}")
+        self._append_log(f"[CONFIG] Network Shield -> {'ENABLED' if state else 'DISABLED'}")
 
     def _on_toggle_canary(self):
         state = bool(self.switch_canary.get())
         config.set_state("CANARY_ACTIVE", state)
-        self._append_log(f"[CONFIG] Canary Honeypots set to {'ENABLED' if state else 'DISABLED'}")
+        self._append_log(f"[CONFIG] Canary Honeypots -> {'ENABLED' if state else 'DISABLED'}")
+
+    def _on_toggle_browser(self):
+        state = bool(self.switch_browser.get())
+        config.set_state("BROWSER_PROTECTION_ACTIVE", state)
+        self._append_log(f"[CONFIG] Browser Download Protection -> {'ENABLED' if state else 'DISABLED'}")
+
+    def _on_toggle_https(self):
+        state = bool(self.switch_https.get())
+        config.set_state("FORCE_HTTPS_ACTIVE", state)
+        self._append_log(f"[CONFIG] Enforce Strict HTTPS -> {'ENABLED' if state else 'DISABLED'}")
 
     def _start_scan_dialog(self):
         if self.is_scanning:
@@ -222,7 +264,6 @@ class WardenXApp(ctk.CTk):
         self.scan_status_label.configure(text=f"Scanning target: {chosen_dir}...", text_color="#38bdf8")
         self._append_log(f"\n--- Starting Scan: {chosen_dir} ---")
 
-        # Run scan in a background thread
         threading.Thread(target=self._run_scan_thread, args=(chosen_dir,), daemon=True).start()
 
     def _run_scan_thread(self, target_dir):
@@ -247,7 +288,7 @@ class WardenXApp(ctk.CTk):
         self.is_scanning = False
         self.btn_scan.configure(state="normal", text="📁 Scan System/Directory")
         self.progress_bar.set(1.0)
-        
+
         status_text = (
             f"Scan finished for {target_dir}. Scanned: {results['scanned']}, "
             f"Malicious: {results['malicious']}, Errors: {results['errors']}"
@@ -262,7 +303,6 @@ class WardenXApp(ctk.CTk):
 
         self._refresh_stats()
 
-        # Completion Popup
         if results["malicious"] > 0:
             messagebox.showwarning(
                 "Scan Completed - Threats Detected!",
@@ -283,7 +323,7 @@ class WardenXApp(ctk.CTk):
             self.lbl_stats.configure(
                 text=f"Total Scans Logged: {total_scans} | Threats/Blocks: {total_blocks}"
             )
-        except Exception as e:
+        except Exception:
             self.lbl_stats.configure(text="Stats: Database Unavailable")
 
     def _append_log(self, message):
