@@ -2,7 +2,30 @@ import os
 import shutil
 import logging
 from pathlib import Path
-from database import log_block
+from database import log_block, log_scan
+
+def trigger_lockdown(canary_path):
+    log_scan(canary_path, "N/A", "Behavioral (Canary)", "Ransomware Detected")
+    if os.environ.get("WARDENX_HEADLESS") == "1":
+        logging.info("Skipping lockdown notification in headless test mode.")
+        return
+    try:
+        from plyer import notification
+        notification.notify(
+            title="CRITICAL: Ransomware Detected!",
+            message=f"Active encryption behavior intercepted on {Path(canary_path).name}",
+            app_name="WardenX",
+            timeout=10
+        )
+    except ImportError:
+        logging.warning("plyer not installed.")
+        if os.name == 'posix':
+            try:
+                os.system('notify-send -u critical "CRITICAL: Ransomware Detected!" "Active encryption behavior intercepted"')
+            except Exception:
+                pass
+    except Exception as e:
+        logging.error(f"Failed to send lockdown notification: {e}")
 
 def get_quarantine_dir():
     home_dir = Path.home()

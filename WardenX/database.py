@@ -19,6 +19,16 @@ def init_db():
         )
     ''')
     cursor.execute('''
+        CREATE TABLE IF NOT EXISTS network_logs (
+            timestamp TEXT,
+            source_ip TEXT,
+            dest_ip TEXT,
+            port INTEGER,
+            protocol TEXT,
+            action TEXT
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS block_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT,
@@ -52,6 +62,18 @@ def log_block(original_path, quarantine_path, threat_signature, file_hash):
         INSERT INTO block_history (timestamp, original_path, quarantine_path, threat_signature, file_hash)
         VALUES (?, ?, ?, ?, ?)
     ''', (timestamp, str(original_path), str(quarantine_path), threat_signature, file_hash))
+    conn.commit()
+    conn.close()
+
+def log_network_event(src, dst, port, protocol, action):
+    init_db()
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    timestamp = datetime.datetime.now().isoformat()
+    cursor.execute('''
+        INSERT INTO network_logs (timestamp, source_ip, dest_ip, port, protocol, action)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (timestamp, src, dst, port, protocol, action))
     conn.commit()
     conn.close()
 

@@ -8,3 +8,7 @@ yara-python
 rich
 selenium
 webdriver-manager
+pystray
+Pillow
+scapy
+psutil

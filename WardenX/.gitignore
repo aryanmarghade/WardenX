@@ -26,3 +26,5 @@ wheels/
 *.db
 .wardenx_quarantine/
 .pytest_cache/
+!build_windows/setup.iss
+!build_linux/build_and_install.sh

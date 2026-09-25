@@ -13,13 +13,13 @@ def install_service():
 
 def _install_windows_task():
     try:
-        script_path = Path(__file__).parent / "cli.py"
+        script_path = Path(__file__).parent / "tray_app.py"
         python_exe = sys.executable
         task_name = "WardenX_EDR"
         
         # Use powershell to create a scheduled task on logon
         ps_command = (
-            f"$Action = New-ScheduledTaskAction -Execute '{python_exe}' -Argument '{script_path} on'; "
+            f"$Action = New-ScheduledTaskAction -Execute '{python_exe}' -Argument '{script_path}'; "
             f"$Trigger = New-ScheduledTaskTrigger -AtLogOn; "
             f"Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName '{task_name}' -Description 'WardenX EDR Daemon' -Force"
         )
@@ -39,7 +39,7 @@ Description=WardenX EDR Daemon
 After=network.target
 
 [Service]
-ExecStart={sys.executable} {Path(__file__).parent / 'cli.py'} on
+ExecStart={sys.executable} {Path(__file__).parent / 'tray_app.py'}
 Restart=always
 User={os.getenv('USER', 'root')}
 
