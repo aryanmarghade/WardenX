@@ -25,6 +25,9 @@ syn_tracker_lock = threading.Lock()
 def is_linux():
     return platform.system() == "Linux"
 
+def is_windows():
+    return platform.system() == "Windows"
+
 def _run_iptables_command(cmd_args):
     """
     Executes an iptables command. Attempts sudo if not running as root.
@@ -85,11 +88,61 @@ def apply_iptables_https_enforcement(enable: bool):
             return success
         return True
 
+def _run_windows_firewall_command(cmd_args):
+    """Executes a Windows netsh advfirewall command."""
+    try:
+        cmd = ["netsh", "advfirewall", "firewall"] + cmd_args
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except Exception as e:
+        logging.debug(f"Windows firewall command error: {e}")
+        return False
+
+def apply_windows_firewall_https_enforcement(enable: bool):
+    """
+    On Windows, injects or removes a Windows Firewall rule to BLOCK outbound Port 80 (HTTP).
+    Rule: netsh advfirewall firewall add rule name="WardenX_Block_HTTP" dir=out action=block protocol=TCP remoteport=80
+    """
+    if not is_windows():
+        return False
+
+    rule_name = "WardenX_Block_HTTP"
+    show_cmd = ["show", "rule", f"name={rule_name}"]
+    add_cmd = ["add", "rule", f"name={rule_name}", "dir=out", "action=block", "protocol=TCP", "remoteport=80"]
+    del_cmd = ["delete", "rule", f"name={rule_name}"]
+
+    rule_exists = _run_windows_firewall_command(show_cmd)
+
+    if enable:
+        if not rule_exists:
+            success = _run_windows_firewall_command(add_cmd)
+            if success:
+                logging.info("[FIREWALL] Active: Injected Windows Firewall rule to BLOCK outbound Port 80.")
+            else:
+                logging.warning("[FIREWALL] Could not add Windows Firewall rule. Run WardenX as Administrator to enforce kernel-level HTTP dropping.")
+            return success
+        return True
+    else:
+        if rule_exists:
+            success = _run_windows_firewall_command(del_cmd)
+            if success:
+                logging.info("[FIREWALL] Inactive: Removed Windows Firewall Port 80 rule.")
+            return success
+        return True
+
 def sync_firewall_rules():
-    """Synchronizes system firewall state with current configuration."""
+    """Synchronizes system firewall state with current configuration across Linux & Windows."""
+    active = bool(config.get_state('FORCE_HTTPS_ACTIVE') and config.get_state('NETWORK_SHIELD_ACTIVE'))
     if is_linux():
-        active = bool(config.get_state('FORCE_HTTPS_ACTIVE') and config.get_state('NETWORK_SHIELD_ACTIVE'))
         apply_iptables_https_enforcement(active)
+    elif is_windows():
+        apply_windows_firewall_https_enforcement(active)
 
 def clean_tracker():
     """Remove IPs from tracker that are outside the 5-second window."""
@@ -105,7 +158,7 @@ def process_packet(packet):
         return
 
     try:
-        if IP in packet and TCP in packet:
+        if IP and TCP and IP in packet and TCP in packet:
             src_ip = packet[IP].src
             dst_ip = packet[IP].dst
             dport = packet[TCP].dport
@@ -133,7 +186,6 @@ def process_packet(packet):
                     log_network_event(src_ip, dst_ip, 80, "TCP", "Insecure HTTP connection blocked")
                     return
                 else:
-                    # Insecure HTTP allowed with alert/log if HTTPS enforcement is disabled
                     logging.info(f"[HTTP DETECTED] Unencrypted HTTP traffic: {src_ip}:{sport} -> {dst_ip}:{dport}")
                     log_network_event(src_ip, dst_ip, 80, "TCP", "Alerted (Port 80)")
                     return
@@ -150,7 +202,8 @@ def _start_sniffing_thread():
     try:
         logging.info("Network Shield packet sniffing initialized.")
         sync_firewall_rules()
-        sniff(prn=process_packet, store=False)
+        if sniff:
+            sniff(prn=process_packet, store=False)
     except Exception as e:
         logging.error(f"Error starting packet sniffer: {e}")
 
@@ -166,3 +219,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         if is_linux():
             apply_iptables_https_enforcement(False)
+        elif is_windows():
+            apply_windows_firewall_https_enforcement(False)
